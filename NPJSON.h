@@ -660,7 +660,8 @@ extern NPJSONNode *NPJSON_GetNext(NPJSONNode *n);
         NPJSONNode *__obj    = __root;                        \
         NPJSONNode *__ptr    = __obj->Val.Object;             \
         NPJSONNode *__tmp    = NULL;                          \
-        bool        __is_err = false;
+        bool        __is_err = false;                         \
+        do {
 
 /**
  * @brief    结束解析
@@ -668,6 +669,9 @@ extern NPJSONNode *NPJSON_GetNext(NPJSONNode *n);
  * @date     2024-07-23
  */
 #define NPJSON_Builder_End() \
+    }                        \
+    while (false)            \
+        ;                    \
     NPJSON_Release(&__root); \
     }                        \
     while (false)
