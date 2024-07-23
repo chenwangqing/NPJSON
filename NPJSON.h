@@ -7,6 +7,25 @@
  *
  * @copyright Copyright (c) 2024  chenxiangshu@outlook.com
  *
+ * SPDX-License-Identifier: MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
  * @par 修改日志:
  * <table>
  * <tr><th>日期       <th>版本    <th>作者    <th>说明
@@ -432,20 +451,26 @@ typedef struct _NPJSONNode
     uint8_t isString : 1;     // 是否为字符串
     uint8_t isNull : 1;       // 是否空值
 
-    struct
+    union
     {
-        bool                BinValue;   // 二值量
-        char *              String;     // 字符串
-        long long           Value;      // 整型值
-        double              Number;     // 数值量
-        struct _NPJSONNode *Object;     // 对象值
+        bool  BinValue;   // 二值量
+        char *String;     // 字符串
+        struct
+        {
+            long long Value;    // 整型值
+            double    Number;   // 数值量
+        };
+        struct
+        {
+            struct _NPJSONNode *Object;       // 对象值
+            size_t              ChildCount;   // 子对象的数量
+        };
     } Val;
 
-    size_t              ChildCount;   // 子对象的数量
-    struct _NPJSONNode *next;         // 后驱指针
-    char *              name;         // null 表示数组内容
-    int                 ArrIdx;       // 数组索引
-    int                 level;        // 层级
+    struct _NPJSONNode *next;     // 后驱指针
+    char *              name;     // null 表示数组内容
+    int                 ArrIdx;   // 数组索引
+    int                 level;    // 层级
 } NPJSONNode;
 
 // FUNC：NPJSON_Builder
@@ -679,13 +704,13 @@ extern NPJSONNode *NPJSON_GetNext(NPJSONNode *n);
 
 #define NPJSON_Object_GetInt(name, ret) \
     __npjson_object_get(                \
-        name, (__ptr->isInteger || __ptr->isBinValue || __ptr->isNumber), "Int", Value, ret)
+        name, (__ptr->isInteger || __ptr->isNumber), "Int", Value, ret)
 
 #define NPJSON_Object_GetNumber(name, ret) \
     __npjson_object_get(name, (__ptr->isNumber || __ptr->isInteger), "Number", Number, ret)
 
 #define NPJSON_Object_GetBool(name, ret) \
-    __npjson_object_get(name, (__ptr->isInteger || __ptr->isBinValue), "Bool", BinValue, ret)
+    __npjson_object_get(name, (__ptr->isBinValue), "Bool", BinValue, ret)
 
 #define NPJSON_Object_GetString(name, ret, capacity)                                            \
     {                                                                                           \
@@ -704,13 +729,13 @@ extern NPJSONNode *NPJSON_GetNext(NPJSONNode *n);
 
 #define NPJSON_Array_GetInt(ret) \
     __npjson_array_get(          \
-        (__ptr->isInteger || __ptr->isBinValue || __ptr->isNumber), "Int", Value, ret)
+        (__ptr->isInteger || __ptr->isNumber), "Int", Value, ret)
 
 #define NPJSON_Array_GetNumber(ret) \
     __npjson_array_get((__ptr->isNumber || __ptr->isInteger), "Number", Number, ret)
 
 #define NPJSON_Array_GetBool(name, ret) \
-    __npjson_array_get((__ptr->isInteger || __ptr->isBinValue), "Bool", BinValue, ret)
+    __npjson_array_get((__ptr->isBinValue), "Bool", BinValue, ret)
 
 #define NPJSON_Array_GetString(ret, capacity)                                            \
     {                                                                                    \
@@ -727,13 +752,28 @@ extern NPJSONNode *NPJSON_GetNext(NPJSONNode *n);
         }                                                                                \
     }
 
+/**
+ * @brief    当前字段是否为空
+ * @author   CXS (chenxiangshu@outlook.com)
+ * @date     2024-07-23
+ */
 #define NPJSON_Object_IsNull(name, ret) \
     __npjson_find(name);                \
     (ret) = __ptr ? __ptr->isNull : true
 
+/**
+ * @brief    当前元素是否位空
+ * @author   CXS (chenxiangshu@outlook.com)
+ * @date     2024-07-23
+ */
 #define NPJSON_Array_IsNull(ret) (ret) = __ptr ? __ptr->isNull : true
 
-#define NPJSON_Array_GetCount() (__is_err ? 0 : __obj->ChildCount);
+/**
+ * @brief    获取数组数量
+ * @author   CXS (chenxiangshu@outlook.com)
+ * @date     2024-07-23
+ */
+#define NPJSON_Array_GetCount() (__is_err ? 0 : NPJSON_GetChildCount(__obj));
 /*
     char cmdId[64];
     const char* msg = NULL;

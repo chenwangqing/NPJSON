@@ -144,8 +144,7 @@ const char *NPJSON_ResolveValue(NPJSON_Result *re, NPJSON_ResolveFunc fun, const
             }
             if (lv != 0)
                 return NPJSON_NULL;
-            re->isObject = 1;
-            re->isArray  = 1;
+            re->isArray = 1;
             if (!fun(re->name, re, re->ArrIdx, obj))
                 return NPJSON_NULL;
             break;
@@ -935,7 +934,7 @@ NPJSON_SObject NPJSON_SObjectClone(const NPJSON_SObject *re)
 
 static void NPJSON_Builder_fix(NPJSONNode *n)
 {
-    if (n == NPJSON_NULL || n->isObject == 0)
+    if (n == NPJSON_NULL || (n->isObject == 0 && n->isArray == 0))
         return;
     // 再次尾插
     NPJSONNode *t = n->Val.Object;
@@ -953,7 +952,7 @@ static void NPJSON_Builder_fix(NPJSONNode *n)
 static bool NPJSON_Builder_func(const char *name, NPJSON_Result *re, int index, void *obj)
 {
     NPJSONNode **n = (NPJSONNode **)obj;
-    if ((*n)->isObject == 0)
+    if ((*n)->isObject == 0 && (*n)->isArray == 0)
         return false;
     NPJSONNode *tmp = NEW(NPJSONNode, 1);
     if (tmp == NPJSON_NULL)
@@ -972,31 +971,31 @@ static bool NPJSON_Builder_func(const char *name, NPJSON_Result *re, int index, 
     // 尾插法
     tmp->next        = (*n)->Val.Object;
     (*n)->Val.Object = tmp;
-    (*n)->ChildCount++;
+    (*n)->Val.ChildCount++;
 
     // 设置值
-    tmp->isBinValue   = re->isBinValue;
-    tmp->isNull       = re->isNull;
-    tmp->isNumber     = re->isNumber;
-    tmp->isObject     = re->isObject;
-    tmp->isString     = re->isString;
-    tmp->isArray      = re->isArray;
-    tmp->isInteger    = re->isInteger;
-    tmp->Val.BinValue = re->Val.BinValue;
-    tmp->Val.Number   = re->Val.Number;
-    tmp->Val.Value    = re->Val.Value;
-
-    tmp->level  = re->level;
-    tmp->ArrIdx = index;
-
-    if (tmp->isString) {
+    tmp->level      = re->level;
+    tmp->ArrIdx     = index;
+    tmp->isBinValue = re->isBinValue;
+    tmp->isNull     = re->isNull;
+    tmp->isNumber   = re->isNumber;
+    tmp->isObject   = re->isObject;
+    tmp->isString   = re->isString;
+    tmp->isArray    = re->isArray;
+    tmp->isInteger  = re->isInteger;
+    if (re->isBinValue)
+        tmp->Val.BinValue = re->Val.BinValue;
+    else if (re->isInteger || re->isNumber) {
+        tmp->Val.Number = re->Val.Number;
+        tmp->Val.Value  = re->Val.Value;
+    } else if (tmp->isString) {
         char *str = NEW(char, (re->Val.String.length + 1));
         if (str != NPJSON_NULL) {
             memcpy(str, re->Val.String.ptr, re->Val.String.length);
             str[re->Val.String.length] = '\0';
             tmp->Val.String            = str;
         }
-    } else if (tmp->isObject) {
+    } else if (tmp->isObject || tmp->isArray) {
         bool rs = re->Resolve(re, &tmp, NPJSON_Builder_func);
         NPJSON_Builder_fix(tmp);   // 顺序修正
         return rs;
@@ -1032,7 +1031,7 @@ void NPJSON_Release(NPJSONNode **n)
     while (p != NPJSON_NULL) {
         NPJSONNode *t = p;
         p             = p->next;
-        if (t->Val.String != NPJSON_NULL)
+        if (t->isString && t->Val.String != NPJSON_NULL)
             DELETE(t->Val.String);
         if (t->name != NPJSON_NULL)
             DELETE(t->name);
@@ -1062,7 +1061,7 @@ size_t NPJSON_GetChildCount(NPJSONNode *n)
 {
     if (n == NPJSON_NULL)
         return 0;
-    return n->ChildCount;
+    return n->isObject || n->isArray ? n->Val.ChildCount : 0;
 }
 
 NPJSONNode *NPJSON_GetNext(NPJSONNode *n)
